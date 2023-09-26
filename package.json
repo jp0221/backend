@@ -1,10 +1,10 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "start": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -13,6 +13,9 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "mssql": "^10.0.1",
+    "mysql": "^2.18.1",
     "nodemon": "^3.0.1"
-  }
+  },
+  "description": ""
 }
