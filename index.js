@@ -42,14 +42,6 @@ app.get("/top5actors", (req,res)=>{
     });
 });
 
-app.get("/customers", (req,res)=>{
-    const q = "SELECT c.customer_id, c.first_name, c.last_name, COUNT(r.rental_id) AS count FROM customer AS c JOIN rental AS r ON r.customer_id = c.customer_id GROUP BY c.customer_id, c.first_name, c.last_name ORDER BY count DESC;"
-    db.query(q,(err, data) => {
-        if(err) return res.json(err);
-        return res.json(data);
-    });
-});
-
 app.post("/customers", (req, res) => {
     const {
         customer_id,
@@ -103,7 +95,13 @@ app.post("/customers", (req, res) => {
     );
 });
 
-
+app.get("/customers", (req,res)=>{
+    const q = "SELECT c.customer_id, c.first_name, c.last_name, IFNULL(COUNT(r.rental_id), 0) AS count FROM customer AS c LEFT JOIN rental AS r ON r.customer_id = c.customer_id GROUP BY c.customer_id, c.first_name, c.last_name ORDER BY count DESC;"
+    db.query(q,(err, data) => {
+        if(err) return res.json(err);
+        return res.json(data);
+    });
+});
 
 app.get("/movies", (req,res)=>{
     const q = "SELECT f.film_id, f.title AS movie_title, f.description AS movie_description, GROUP_CONCAT(CONCAT(a.first_name, ' ', a.last_name) SEPARATOR ', ') AS actor_names, c.name AS genre_name FROM film AS f JOIN film_actor AS fa ON f.film_id = fa.film_id JOIN actor AS a ON fa.actor_id = a.actor_id JOIN film_category AS fc ON f.film_id = fc.film_id JOIN category AS c ON fc.category_id = c.category_id GROUP BY f.film_id, f.title, f.description, c.name ORDER BY f.film_id;"
