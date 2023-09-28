@@ -1,6 +1,6 @@
-import express from "express";
-import mysql from "mysql";
-import cors from "cors";
+const express = require('express');
+const mysql = require('mysql');
+const cors = require('cors');
 
 const app = express();
 
@@ -34,13 +34,15 @@ app.get("/top5movies", (req,res)=>{
     });
 });
 
-app.get("/top5actors", (req,res)=>{
+const handleTop5Actors = (req, res) => {
     const q = "SELECT top_actors.actor_id, top_actors.first_name, top_actors.last_name, top_actors.movie_count, (SELECT GROUP_CONCAT(rented_movies.title ORDER BY rented_movies.rental_count DESC SEPARATOR ', ') FROM (SELECT f.title, COUNT(*) AS rental_count FROM film AS f JOIN inventory AS i ON f.film_id = i.film_id JOIN rental AS r ON i.inventory_id = r.inventory_id WHERE f.film_id IN (SELECT fa.film_id FROM film_actor AS fa WHERE fa.actor_id = top_actors.actor_id) GROUP BY f.title ORDER BY rental_count DESC LIMIT 5) AS rented_movies) AS top_rented_movies FROM (SELECT a.actor_id, a.first_name, a.last_name, COUNT(*) AS movie_count FROM actor AS a JOIN film_actor AS fa ON a.actor_id = fa.actor_id GROUP BY a.actor_id, a.first_name, a.last_name ORDER BY movie_count DESC LIMIT 5) AS top_actors;"
     db.query(q,(err, data) => {
         if(err) return res.json(err);
         return res.json(data);
     });
-});
+}
+
+app.get("/top5actors", handleTop5Actors);
 
 app.post("/customers", (req, res) => {
     const {
@@ -95,21 +97,24 @@ app.post("/customers", (req, res) => {
     );
 });
 
-app.get("/customers", (req,res)=>{
+const handleCustomersRoute = (req, res) => {
     const q = "SELECT c.customer_id, c.first_name, c.last_name, IFNULL(COUNT(r.rental_id), 0) AS count FROM customer AS c LEFT JOIN rental AS r ON r.customer_id = c.customer_id GROUP BY c.customer_id, c.first_name, c.last_name ORDER BY count DESC;"
     db.query(q,(err, data) => {
         if(err) return res.json(err);
         return res.json(data);
     });
-});
+}
+app.get("/customers", handleCustomersRoute);
 
-app.get("/movies", (req,res)=>{
+const handleMoviesRoute = (req, res) => {
     const q = "SELECT f.film_id, f.title AS movie_title, f.description AS movie_description, GROUP_CONCAT(CONCAT(a.first_name, ' ', a.last_name) SEPARATOR ', ') AS actor_names, c.name AS genre_name FROM film AS f JOIN film_actor AS fa ON f.film_id = fa.film_id JOIN actor AS a ON fa.actor_id = a.actor_id JOIN film_category AS fc ON f.film_id = fc.film_id JOIN category AS c ON fc.category_id = c.category_id GROUP BY f.film_id, f.title, f.description, c.name ORDER BY f.film_id;"
     db.query(q,(err, data) => {
         if(err) return res.json(err);
         return res.json(data);
     });
-});
+}
+
+app.get("/movies", handleMoviesRoute);
 
 /*app.post("/actor", (req,res)=>{
     const q = "INSER INTO actor (`actor_id`,`first_name`,`last_name`,`last_update`) VALUES (?)";
@@ -124,3 +129,9 @@ app.get("/movies", (req,res)=>{
 app.listen(5000, ()=>{
     console.log("Connected to backend!")
 });
+
+module.exports = {
+    handleCustomersRoute,
+    handleMoviesRoute,
+    handleTop5Actors
+};
