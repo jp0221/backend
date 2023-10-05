@@ -97,6 +97,46 @@ app.post("/customers", (req, res) => {
     );
 });
 
+app.delete('/customers/:customerId', (req, res) => {
+    const customerId = req.params.customerId;
+
+    const q = 'DELETE FROM customer WHERE customer_id = ?';
+
+    db.query(q, [customerId], (err, result) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Failed to delete customer' });
+        }
+
+        if (result.affectedRows === 0) {
+            // No customer with the provided customer_id found
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+
+        res.status(204).send(); // Send a successful response with no content
+    });
+});
+
+app.put('/customers/:customerId', (req, res) => {
+    const customerId = req.params.customerId;
+    const { first_name, last_name } = req.body;
+
+    const q = 'UPDATE customer SET first_name = ?, last_name = ? WHERE customer_id = ?';
+
+    db.query(q, [first_name, last_name, customerId], (err,result) => {
+        if(err) {
+            console.error(err);
+            return res.status(500).json({error: 'Failed to update customer' });
+        }
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+
+        res.status(200).json({message: 'Customer update successfully' });
+    });
+});
+
 const handleCustomersRoute = (req, res) => {
     const q = "SELECT c.customer_id, c.first_name, c.last_name, IFNULL(COUNT(r.rental_id), 0) AS count FROM customer AS c LEFT JOIN rental AS r ON r.customer_id = c.customer_id GROUP BY c.customer_id, c.first_name, c.last_name ORDER BY count DESC;"
     db.query(q,(err, data) => {
