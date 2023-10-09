@@ -137,10 +137,38 @@ app.put('/customers/:customerId', (req, res) => {
     });
 });
 
+app.put('/customers/return/:customerId', (req, res) => {
+    const customerId = req.params.customerId;
+
+    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+    const q = 'UPDATE rental SET return_date = ? WHERE customer_id = ? AND return_date IS NULL';
+
+    db.query(q, [currentDate, customerId], (err, result) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Failed to update return date' });
+        }
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'No pending rentals found for this customer' });
+        }
+
+        res.status(200).json({ message: 'Return date updated successfully', return_date: currentDate });
+    });
+});
+
 const handleCustomersRoute = (req, res) => {
-    const q = "SELECT c.customer_id, c.first_name, c.last_name, IFNULL(COUNT(r.rental_id), 0) AS count FROM customer AS c LEFT JOIN rental AS r ON r.customer_id = c.customer_id GROUP BY c.customer_id, c.first_name, c.last_name ORDER BY count DESC;"
+    const q = "SELECT c.customer_id, c.first_name, c.last_name, IFNULL(COUNT(r.rental_id), 0) AS count, MAX(IFNULL(r.return_date, 'null')) AS return_date, GROUP_CONCAT(m.title ORDER BY r.rental_date) AS rented_movies FROM customer AS c LEFT JOIN rental AS r ON r.customer_id = c.customer_id LEFT JOIN inventory AS i ON r.inventory_id = i.inventory_id LEFT JOIN film AS m ON i.film_id = m.film_id GROUP BY c.customer_id, c.first_name, c.last_name ORDER BY count DESC;"
     db.query(q,(err, data) => {
         if(err) return res.json(err);
+        data.forEach((customer) => {
+            if (customer.rented_movies !== 'null' && customer.rented_movies !== null) {
+                customer.rented_movies = customer.rented_movies.split(',').filter(Boolean);
+            } else {
+                customer.rented_movies = [];
+            }
+        });
         return res.json(data);
     });
 }
