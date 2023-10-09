@@ -147,7 +147,7 @@ const handleCustomersRoute = (req, res) => {
 app.get("/customers", handleCustomersRoute);
 
 const handleMoviesRoute = (req, res) => {
-    const q = "SELECT f.film_id, f.title AS movie_title, f.description AS movie_description, GROUP_CONCAT(CONCAT(a.first_name, ' ', a.last_name) SEPARATOR ', ') AS actor_names, c.name AS genre_name FROM film AS f JOIN film_actor AS fa ON f.film_id = fa.film_id JOIN actor AS a ON fa.actor_id = a.actor_id JOIN film_category AS fc ON f.film_id = fc.film_id JOIN category AS c ON fc.category_id = c.category_id GROUP BY f.film_id, f.title, f.description, c.name ORDER BY f.film_id;"
+    const q = "SELECT f.film_id, f.title AS movie_title, f.description AS movie_description,f.rental_rate, GROUP_CONCAT(CONCAT(a.first_name, ' ', a.last_name) SEPARATOR ', ') AS actor_names, c.name AS genre_name FROM film AS f JOIN film_actor AS fa ON f.film_id = fa.film_id JOIN actor AS a ON fa.actor_id = a.actor_id JOIN film_category AS fc ON f.film_id = fc.film_id JOIN category AS c ON fc.category_id = c.category_id GROUP BY f.film_id, f.title, f.description, f.rental_rate, c.name ORDER BY f.film_id;"
     db.query(q,(err, data) => {
         if(err) return res.json(err);
         return res.json(data);
