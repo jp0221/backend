@@ -174,47 +174,75 @@ const handleCustomersRoute = (req, res) => {
 }
 app.get("/customers", handleCustomersRoute);
 
-app.post("/movies/rent/:filmId", (req, res) => {
+// Check if a movie is available for rent
+app.get("/movies/check-availability/:filmId/:customerId", (req, res) => {
     const filmId = req.params.filmId;
-    const customerId = req.body.customerId;
+    const customerId = req.params.customerId;
 
-    // Check if customerId and filmId are provided
-    if (!customerId || !filmId) {
-        return res.status(400).json({ error: 'Customer ID and Film ID are required' });
-    }
-
-    // Perform additional checks here, such as checking if the movie is available for rent
-    // and if the customer exists. You can do these checks before the SQL query.
-
-    // Insert a new rental record into your rental table with staff_id preset to 1
     const q = `
-        INSERT INTO rental (customer_id, inventory_id, rental_date, staff_id)
-        SELECT ?, inventory_id, NOW(), 1  -- Preset staff_id to 1
-        FROM inventory
-        WHERE film_id = ?
-          AND NOT EXISTS (SELECT 1 FROM rental WHERE inventory_id = inventory.inventory_id)
-        LIMIT 1
+        SELECT r.rental_id, r.customer_id
+        FROM rental AS r
+        JOIN inventory AS i ON r.inventory_id = i.inventory_id
+        WHERE i.film_id = ? AND r.return_date IS NULL
     `;
 
-    db.query(
-        q,
-        [customerId, filmId],
-        (err, result) => {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ error: 'Failed to rent the movie' });
-            }
-
-            if (result.affectedRows === 0) {
-                return res.status(400).json({ error: 'Movie is not available for rent or customer does not exist' });
-            }
-
-            res.status(201).json({ message: 'Movie rented successfully', rentalId: result.insertId });
+    db.query(q, [filmId], (err, result) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Error checking movie availability' });
         }
-    );
+
+        if (result.length === 0) {
+            return res.status(400).json({ error: 'This movie is not available for rent.', rentedBy: null });
+        }
+
+        const rentedBy = result[0].customer_id;
+        res.json({ isAvailable: true, rentedBy });
+    });
 });
 
+// Rent a movie
+// Rent a movie
+app.post("/movies/rent", (req, res) => {
+    const { filmId, customerId } = req.body;
+    const storeId = 1; // Set the store ID to 1
+    const staffId = 1; // Set the staff ID to 1
 
+    // Check if the movie is available for rent
+    const availabilityQuery = `
+        SELECT r.rental_id
+        FROM rental AS r
+        JOIN inventory AS i ON r.inventory_id = i.inventory_id
+        WHERE i.film_id = ? AND r.return_date IS NULL
+    `;
+
+    db.query(availabilityQuery, [filmId], (availabilityError, availabilityResult) => {
+        if (availabilityError) {
+            console.error(availabilityError);
+            return res.status(500).json({ error: 'Error checking movie availability' });
+        }
+
+        if (availabilityResult.length === 0) {
+            return res.status(400).json({ error: 'This movie is not available for rent.' });
+        }
+
+        // If the movie is available, proceed with renting it
+        const rentalQuery = `
+        INSERT INTO rental (inventory_id, staff_id, customer_id, rental_date)
+        VALUES (?, ?, ?, NOW())       
+        `;
+
+        db.query(rentalQuery, [filmId, storeId, customerId, staffId], (rentalError, rentalResult) => {
+            if (rentalError) {
+                console.error(rentalError);
+                return res.status(500).json({ error: 'Error renting the movie.' });
+            }
+
+            const rentalId = rentalResult.insertId;
+            res.status(201).json({ message: 'Movie rented successfully', rentalId });
+        });
+    });
+});
 
 
 const handleMoviesRoute = (req, res) => {
