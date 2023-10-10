@@ -174,6 +174,49 @@ const handleCustomersRoute = (req, res) => {
 }
 app.get("/customers", handleCustomersRoute);
 
+app.post("/movies/rent/:filmId", (req, res) => {
+    const filmId = req.params.filmId;
+    const customerId = req.body.customerId;
+
+    // Check if customerId and filmId are provided
+    if (!customerId || !filmId) {
+        return res.status(400).json({ error: 'Customer ID and Film ID are required' });
+    }
+
+    // Perform additional checks here, such as checking if the movie is available for rent
+    // and if the customer exists. You can do these checks before the SQL query.
+
+    // Insert a new rental record into your rental table with staff_id preset to 1
+    const q = `
+        INSERT INTO rental (customer_id, inventory_id, rental_date, staff_id)
+        SELECT ?, inventory_id, NOW(), 1  -- Preset staff_id to 1
+        FROM inventory
+        WHERE film_id = ?
+          AND NOT EXISTS (SELECT 1 FROM rental WHERE inventory_id = inventory.inventory_id)
+        LIMIT 1
+    `;
+
+    db.query(
+        q,
+        [customerId, filmId],
+        (err, result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Failed to rent the movie' });
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(400).json({ error: 'Movie is not available for rent or customer does not exist' });
+            }
+
+            res.status(201).json({ message: 'Movie rented successfully', rentalId: result.insertId });
+        }
+    );
+});
+
+
+
+
 const handleMoviesRoute = (req, res) => {
     const q = "SELECT f.film_id, f.title AS movie_title, f.description AS movie_description,f.rental_rate, GROUP_CONCAT(CONCAT(a.first_name, ' ', a.last_name) SEPARATOR ', ') AS actor_names, c.name AS genre_name FROM film AS f JOIN film_actor AS fa ON f.film_id = fa.film_id JOIN actor AS a ON fa.actor_id = a.actor_id JOIN film_category AS fc ON f.film_id = fc.film_id JOIN category AS c ON fc.category_id = c.category_id GROUP BY f.film_id, f.title, f.description, f.rental_rate, c.name ORDER BY f.film_id;"
     db.query(q,(err, data) => {
