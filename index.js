@@ -164,72 +164,6 @@ const handleCustomersRoute = (req, res) => {
 }
 app.get("/customers", handleCustomersRoute);
 
-app.get("/movies/check-availability/:filmId/:customerId", (req, res) => {
-    const filmId = req.params.filmId;
-    const customerId = req.params.customerId;
-
-    const q = `
-        SELECT r.rental_id, r.customer_id
-        FROM rental AS r
-        JOIN inventory AS i ON r.inventory_id = i.inventory_id
-        WHERE i.film_id = ? AND r.return_date IS NULL
-    `;
-
-    db.query(q, [filmId], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Error checking movie availability' });
-        }
-
-        if (result.length === 0) {
-            return res.status(400).json({ error: 'This movie is not available for rent.', rentedBy: null });
-        }
-
-        const rentedBy = result[0].customer_id;
-        res.json({ isAvailable: true, rentedBy });
-    });
-});
-
-app.post("/movies/rent", (req, res) => {
-    const { filmId, customerId } = req.body;
-    const storeId = 1;
-    const staffId = 1; 
-
-    const availabilityQuery = `
-        SELECT r.rental_id
-        FROM rental AS r
-        JOIN inventory AS i ON r.inventory_id = i.inventory_id
-        WHERE i.film_id = ? AND r.return_date IS NULL
-    `;
-
-    db.query(availabilityQuery, [filmId], (availabilityError, availabilityResult) => {
-        if (availabilityError) {
-            console.error(availabilityError);
-            return res.status(500).json({ error: 'Error checking movie availability' });
-        }
-
-        if (availabilityResult.length === 0) {
-            return res.status(400).json({ error: 'This movie is not available for rent.' });
-        }
-
-        const rentalQuery = `
-        INSERT INTO rental (inventory_id, staff_id, customer_id, rental_date)
-        VALUES (?, ?, ?, NOW())       
-        `;
-
-        db.query(rentalQuery, [filmId, storeId, customerId, staffId], (rentalError, rentalResult) => {
-            if (rentalError) {
-                console.error(rentalError);
-                return res.status(500).json({ error: 'Error renting the movie.' });
-            }
-
-            const rentalId = rentalResult.insertId;
-            res.status(201).json({ message: 'Movie rented successfully', rentalId });
-        });
-    });
-});
-
-
 const handleMoviesRoute = (req, res) => {
     const q = "SELECT f.film_id, f.title AS movie_title, f.description AS movie_description,f.rental_rate, GROUP_CONCAT(CONCAT(a.first_name, ' ', a.last_name) SEPARATOR ', ') AS actor_names, c.name AS genre_name FROM film AS f JOIN film_actor AS fa ON f.film_id = fa.film_id JOIN actor AS a ON fa.actor_id = a.actor_id JOIN film_category AS fc ON f.film_id = fc.film_id JOIN category AS c ON fc.category_id = c.category_id GROUP BY f.film_id, f.title, f.description, f.rental_rate, c.name ORDER BY f.film_id;"
     db.query(q,(err, data) => {
@@ -239,6 +173,98 @@ const handleMoviesRoute = (req, res) => {
 }
 
 app.get("/movies", handleMoviesRoute);
+
+app.post("/rent-movie", (req, res) => {
+    const { customerId, movieId } = req.body;
+    const staffId = 1; // Set staff ID to 1
+    const storeId = 1; // Set store ID to 1
+
+    // Add code here to validate customer and movie IDs and check for movie availability.
+
+    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+    const insertRentalQuery = `
+        INSERT INTO rental (rental_date, inventory_id, customer_id, return_date, staff_id)
+        SELECT ?, i.inventory_id, ?, NULL, ?
+        FROM inventory AS i
+        WHERE i.film_id = ? AND i.store_id = ?
+        LIMIT 1;
+    `;
+
+    db.query(
+        insertRentalQuery,
+        [currentDate, customerId, staffId, movieId, storeId],
+        (err, result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: "Failed to create rental" });
+            }
+
+            return res.status(201).json({ message: "Movie rented successfully" });
+        }
+    );
+});
+
+app.post("/rent-movie", (req, res) => {
+    const { customerId, movieId } = req.body;
+    const staffId = 1;
+    const storeId = 1;
+
+    const checkCustomerQuery = "SELECT customer_id FROM customer WHERE customer_id = ?";
+    db.query(checkCustomerQuery, [customerId], (err, customerResult) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: "Error checking customer" });
+        }
+
+        if (customerResult.length === 0) {
+            return res.status(400).json({ error: "Customer not found" });
+        }
+
+        const checkMovieQuery = `
+            SELECT i.inventory_id
+            FROM inventory AS i
+            WHERE i.film_id = ? AND i.store_id = ? AND
+                i.inventory_id NOT IN (
+                    SELECT r.inventory_id
+                    FROM rental AS r
+                    WHERE r.return_date IS NULL
+                )
+            LIMIT 1;
+        `;
+        db.query(checkMovieQuery, [movieId, storeId], (err, movieResult) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: "Error checking movie availability" });
+            }
+
+            if (movieResult.length === 0) {
+                return res.status(400).json({ error: "Movie not available for rent" });
+            }
+
+            const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+            const insertRentalQuery = `
+                INSERT INTO rental (rental_date, inventory_id, customer_id, return_date, staff_id)
+                SELECT ?, ?, ?, NULL, ?
+                LIMIT 1;
+            `;
+
+            db.query(
+                insertRentalQuery,
+                [currentDate, movieResult[0].inventory_id, customerId, staffId],
+                (err, result) => {
+                    if (err) {
+                        console.error(err);
+                        return res.status(500).json({ error: "Failed to create rental" });
+                    }
+
+                    return res.status(201).json({ message: "Movie rented successfully" });
+                }
+            );
+        });
+    });
+});
 
 const handleCustomerRentals = (req, res) => {
     const q = `SELECT c.customer_id, c.first_name, c.last_name, r.rental_date, f.title AS movie_title FROM customer AS c JOIN rental AS r ON c.customer_id = r.customer_id JOIN inventory AS i ON r.inventory_id = i.inventory_id JOIN film AS f ON i.film_id = f.film_id`;
