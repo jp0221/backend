@@ -18,21 +18,14 @@ app.get("/", (req,res)=>{
     res.json("hello this is the backend");
 });
 
-app.get("/actors", (req,res)=>{
-    const q = "SELECT * FROM actor LIMIT 50"
-    db.query(q,(err, data) => {
-        if(err) return res.json(err);
-        return res.json(data);
-    });
-});
-
-app.get("/top5movies", (req,res)=>{
+const handleTop5Movies = (req, res) => {
     const q = "SELECT f.title, f.description, rental_counts.rented FROM film AS f JOIN (SELECT i.film_id, COUNT(r.rental_id) AS rented FROM inventory AS i JOIN rental AS r ON r.inventory_id = i.inventory_id GROUP BY i.film_id ORDER BY rented DESC LIMIT 5 ) AS rental_counts ON f.film_id = rental_counts.film_id;"
     db.query(q,(err, data) => {
         if(err) return res.json(err);
         return res.json(data);
     });
-});
+}
+app.get("/top5movies", handleTop5Movies);
 
 const handleTop5Actors = (req, res) => {
     const q = "SELECT top_actors.actor_id, top_actors.first_name, top_actors.last_name, top_actors.movie_count, (SELECT GROUP_CONCAT(rented_movies.title ORDER BY rented_movies.rental_count DESC SEPARATOR ', ') FROM (SELECT f.title, COUNT(*) AS rental_count FROM film AS f JOIN inventory AS i ON f.film_id = i.film_id JOIN rental AS r ON i.inventory_id = r.inventory_id WHERE f.film_id IN (SELECT fa.film_id FROM film_actor AS fa WHERE fa.actor_id = top_actors.actor_id) GROUP BY f.title ORDER BY rental_count DESC LIMIT 5) AS rented_movies) AS top_rented_movies FROM (SELECT a.actor_id, a.first_name, a.last_name, COUNT(*) AS movie_count FROM actor AS a JOIN film_actor AS fa ON a.actor_id = fa.actor_id GROUP BY a.actor_id, a.first_name, a.last_name ORDER BY movie_count DESC LIMIT 5) AS top_actors;"
@@ -55,9 +48,8 @@ app.post("/customers", (req, res) => {
         active,
         create_date,
         last_update,
-    } = req.body; // Assuming you send these fields in the request body
+    } = req.body;
 
-    // Insert the new customer into your database
     const q = `
         INSERT INTO customer (
             customer_id,
@@ -91,7 +83,6 @@ app.post("/customers", (req, res) => {
                 return res.status(500).json({ error: "Internal server error" });
             }
 
-            // Return a success response if the customer was added successfully
             return res.status(201).json({ message: "Customer created successfully", customerId: result.insertId });
         }
     );
@@ -109,11 +100,10 @@ app.delete('/customers/:customerId', (req, res) => {
         }
 
         if (result.affectedRows === 0) {
-            // No customer with the provided customer_id found
             return res.status(404).json({ error: 'Customer not found' });
         }
 
-        res.status(204).send(); // Send a successful response with no content
+        res.status(204).send();
     });
 });
 
@@ -174,7 +164,6 @@ const handleCustomersRoute = (req, res) => {
 }
 app.get("/customers", handleCustomersRoute);
 
-// Check if a movie is available for rent
 app.get("/movies/check-availability/:filmId/:customerId", (req, res) => {
     const filmId = req.params.filmId;
     const customerId = req.params.customerId;
@@ -201,14 +190,11 @@ app.get("/movies/check-availability/:filmId/:customerId", (req, res) => {
     });
 });
 
-// Rent a movie
-// Rent a movie
 app.post("/movies/rent", (req, res) => {
     const { filmId, customerId } = req.body;
-    const storeId = 1; // Set the store ID to 1
-    const staffId = 1; // Set the staff ID to 1
+    const storeId = 1;
+    const staffId = 1; 
 
-    // Check if the movie is available for rent
     const availabilityQuery = `
         SELECT r.rental_id
         FROM rental AS r
@@ -226,7 +212,6 @@ app.post("/movies/rent", (req, res) => {
             return res.status(400).json({ error: 'This movie is not available for rent.' });
         }
 
-        // If the movie is available, proceed with renting it
         const rentalQuery = `
         INSERT INTO rental (inventory_id, staff_id, customer_id, rental_date)
         VALUES (?, ?, ?, NOW())       
@@ -255,15 +240,21 @@ const handleMoviesRoute = (req, res) => {
 
 app.get("/movies", handleMoviesRoute);
 
-/*app.post("/actor", (req,res)=>{
-    const q = "INSER INTO actor (`actor_id`,`first_name`,`last_name`,`last_update`) VALUES (?)";
-    const values = [""];
+const handleCustomerRentals = (req, res) => {
+    const q = `SELECT c.customer_id, c.first_name, c.last_name, r.rental_date, f.title AS movie_title FROM customer AS c JOIN rental AS r ON c.customer_id = r.customer_id JOIN inventory AS i ON r.inventory_id = i.inventory_id JOIN film AS f ON i.film_id = f.film_id`;
 
-    db.query(q,[values], (err,data) => {
-        if (err) return res.json(err);
-        return res.json("Actor has been created.");
+    db.query(q, (err, data) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: "Error fetching customer rentals" });
+        }
+
+        res.json(data);
     });
-})*/
+};
+
+app.get("/customer-rentals", handleCustomerRentals);
+
 
 app.listen(5000, ()=>{
     console.log("Connected to backend!")
@@ -272,5 +263,7 @@ app.listen(5000, ()=>{
 module.exports = {
     handleCustomersRoute,
     handleMoviesRoute,
-    handleTop5Actors
+    handleTop5Actors,
+    handleTop5Movies,
+    handleCustomerRentals
 };

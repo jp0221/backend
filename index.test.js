@@ -1,7 +1,7 @@
 const express = require('express');
 const request = require('supertest');
 const mysql = require('mysql2/promise'); 
-const { handleCustomersRoute, handleMoviesRoute, handleTop5Actors } = require('./index');
+const { handleCustomersRoute, handleMoviesRoute, handleTop5Actors, handleTop5Movies, handleCustomerRentals } = require('./index');
 
 const app = express();
 
@@ -42,5 +42,26 @@ describe('GET /top5actors', () => {
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
     expect(response.body.length).toBe(5); 
+  });
+});
+
+app.get('/top5movies', handleTop5Movies);
+
+describe('GET /top5movies', () => {
+  it('should respond with a list of top 5 movies', async () => {
+    const response = await request(app).get('/top5movies');
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+    expect(response.body.length).toBe(5);
+  });
+});
+
+app.get('/customer-rentals', handleCustomerRentals);
+
+describe('GET /customer-rentals', () => {
+  it('should respond with a list of customer rentals', async () => {
+    const response = await request(app).get('/customer-rentals');
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
   });
 });
