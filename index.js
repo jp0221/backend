@@ -209,30 +209,62 @@ app.post("/rent-movie", (req, res) => {
     const staffId = 1; // Set staff ID to 1
     const storeId = 1; // Set store ID to 1
 
-    // Add code here to validate customer and movie IDs and check for movie availability.
+    // Check if the customer exists
+    const checkCustomerQuery = "SELECT customer_id FROM customer WHERE customer_id = ?";
+    db.query(checkCustomerQuery, [customerId], (customerErr, customerResult) => {
+        if (customerErr) {
+            console.error(customerErr);
+            return res.status(500).json({ error: "Failed to validate customer" });
+        }
 
-    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        if (customerResult.length === 0) {
+            return res.status(400).json({ error: "Customer not found" });
+        }
 
-    const insertRentalQuery = `
-        INSERT INTO rental (rental_date, inventory_id, customer_id, return_date, staff_id)
-        SELECT ?, i.inventory_id, ?, NULL, ?
-        FROM inventory AS i
-        WHERE i.film_id = ? AND i.store_id = ?
-        LIMIT 1;
-    `;
+        // Check if the movie is available
+        const checkMovieQuery = `
+            SELECT i.inventory_id
+            FROM inventory AS i
+            WHERE i.film_id = ? AND i.store_id = ? AND i.inventory_id NOT IN (
+                SELECT r.inventory_id
+                FROM rental AS r
+                WHERE r.return_date IS NULL
+            )
+            LIMIT 1;
+        `;
 
-    db.query(
-        insertRentalQuery,
-        [currentDate, customerId, staffId, movieId, storeId],
-        (err, result) => {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ error: "Failed to create rental" });
+        db.query(checkMovieQuery, [movieId, storeId], (movieErr, movieResult) => {
+            if (movieErr) {
+                console.error(movieErr);
+                return res.status(500).json({ error: "Failed to check movie availability" });
             }
 
-            return res.status(201).json({ message: "Movie rented successfully" });
-        }
-    );
+            if (movieResult.length === 0) {
+                return res.status(400).json({ error: "Movie not available for rent" });
+            }
+
+            const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+            const insertRentalQuery = `
+                INSERT INTO rental (rental_date, inventory_id, customer_id, return_date, staff_id)
+                SELECT ?, ?, ?, NULL, ?
+                LIMIT 1;
+            `;
+
+            db.query(
+                insertRentalQuery,
+                [currentDate, movieResult[0].inventory_id, customerId, staffId],
+                (rentalErr, rentalResult) => {
+                    if (rentalErr) {
+                        console.error(rentalErr);
+                        return res.status(500).json({ error: "Failed to create rental" });
+                    }
+
+                    return res.status(201).json({ message: "Movie rented successfully" });
+                }
+            );
+        });
+    });
 });
 
 app.post("/rent-movie", (req, res) => {
