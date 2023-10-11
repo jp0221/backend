@@ -206,10 +206,9 @@ app.get("/movies", handleMoviesRoute);
 
 app.post("/rent-movie", (req, res) => {
     const { customerId, movieId } = req.body;
-    const staffId = 1; // Set staff ID to 1
-    const storeId = 1; // Set store ID to 1
+    const staffId = 1; 
+    const storeId = 1; 
 
-    // Check if the customer exists
     const checkCustomerQuery = "SELECT customer_id FROM customer WHERE customer_id = ?";
     db.query(checkCustomerQuery, [customerId], (customerErr, customerResult) => {
         if (customerErr) {
@@ -221,7 +220,6 @@ app.post("/rent-movie", (req, res) => {
             return res.status(400).json({ error: "Customer not found" });
         }
 
-        // Check if the movie is available
         const checkMovieQuery = `
             SELECT i.inventory_id
             FROM inventory AS i
