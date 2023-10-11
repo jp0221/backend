@@ -91,21 +91,51 @@ app.post("/customers", (req, res) => {
 app.delete('/customers/:customerId', (req, res) => {
     const customerId = req.params.customerId;
 
-    const q = 'DELETE FROM customer WHERE customer_id = ?';
+    // An array of related tables
+    const relatedTables = ['payment', 'rental'];
 
-    db.query(q, [customerId], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Failed to delete customer' });
+    const deleteRelatedRecords = (tableName, callback) => {
+        const deleteQuery = `DELETE FROM ${tableName} WHERE customer_id = ?`;
+
+        db.query(deleteQuery, [customerId], (err, result) => {
+            if (err) {
+                console.error(err);
+                return callback(err);
+            }
+
+            return callback(null);
+        });
+    };
+
+    const deleteRecordsSequentially = (index) => {
+        if (index < relatedTables.length) {
+            deleteRelatedRecords(relatedTables[index], (err) => {
+                if (err) {
+                    return res.status(500).json({ error: 'Failed to delete related records' });
+                }
+
+                // Move to the next table
+                deleteRecordsSequentially(index + 1);
+            });
+        } else {
+            // All related records have been deleted, now delete the customer record
+            const deleteCustomerQuery = 'DELETE FROM customer WHERE customer_id = ?';
+
+            db.query(deleteCustomerQuery, [customerId], (err, result) => {
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ error: 'Failed to delete customer' });
+                }
+
+                res.status(204).send();
+            });
         }
+    };
 
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Customer not found' });
-        }
-
-        res.status(204).send();
-    });
+    // Start the process by deleting related records sequentially
+    deleteRecordsSequentially(0);
 });
+
 
 app.put('/customers/:customerId', (req, res) => {
     const customerId = req.params.customerId;
